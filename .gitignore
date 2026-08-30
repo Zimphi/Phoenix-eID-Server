@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Secrets and generated test credentials
+secrets/
+private/
+pki/private/
+pki/generated/
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Runtime data
+data/
+logs/
+run/
+
