@@ -1,0 +1,43 @@
+{
+  "ecard_server_url": "https://eid.example.test:9443/ecard",
+  "session_ttl_seconds": 300,
+  "token_ttl_seconds": 120,
+  "psk_bytes": 32,
+  "max_xml_bytes": 1048576,
+  "providers": [
+    {
+      "identifier": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "refresh_url": "https://service.example.test/eid/refresh/unguessable-value",
+      "communication_error_url": "https://service.example.test/eid/error",
+      "terminal_rights": [
+        "GivenNames",
+        "FamilyNames",
+        "DateOfBirth",
+        "RestrictedID",
+        "AgeVerification"
+      ],
+      "max_sessions": 32
+    }
+  ],
+  "listeners": {
+    "soap": {
+      "host": "127.0.0.1",
+      "port": 8443,
+      "certfile": "/run/secrets/eid-soap-cert.pem",
+      "keyfile": "/run/secrets/eid-soap-key.pem",
+      "client_ca": "/run/secrets/eservice-ca.pem"
+    },
+    "public": {
+      "host": "127.0.0.1",
+      "port": 8444,
+      "certfile": "/run/secrets/eid-public-cert.pem",
+      "keyfile": "/run/secrets/eid-public-key.pem"
+    },
+    "ecard": {
+      "host": "127.0.0.1",
+      "port": 9443,
+      "certfile": "/run/secrets/eid-ecard-rsa-cert.pem",
+      "keyfile": "/run/secrets/eid-ecard-rsa-key.pem"
+    }
+  }
+}

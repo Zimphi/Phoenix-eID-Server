@@ -1,22 +1,32 @@
-# Architecture
+# Architektur
 
 ```text
-Phoenix Gateway
-      │ RUN_AUTH / status
-      ▼
-AusweisApp SDK ───── TcToken / EAC transport ───── Phoenix eID Server
-      │                                                   │
-      │ APDU / reader                                     │ DV + terminal key
-      ▼                                                   ▼
-Phoenix virtual eID profile                         Phoenix test CVCA
+eService ── mTLS + WS-Security ── :8443 /eid (SOAP)
+                                      │
+Browser/AusweisApp ── HTTPS ───── :8444 /tctoken/{handle}
+                                      │ gemeinsamer SessionStore
+AusweisApp ── TLS_RSA_PSK + PAOS ─ :9443 /ecard
+                                      │
+                              PAOSBackend / EAC2
+                                      │
+                         Test-CVCA → DV → Terminal
 ```
 
-The desktop gateway controls an installed AusweisApp over its local WebSocket
-SDK. AusweisApp obtains a TcToken from this service and conducts the EAC
-session. The selected virtual card must trust the CVCA that issued the server's
-terminal chain.
+Die Listener liegen absichtlich auf getrennten TLS-Kontexten. Das eService wird
+beim SOAP-Listener gegenseitig TLS-authentisiert und zusätzlich auf
+Nachrichtenebene geprüft. Der öffentliche Listener gibt TcTokens nur einmalig
+und mit `no-store` aus. Der eCard-Listener akzeptiert ausschließlich den von
+TR-03130 geforderten RSA-PSK-Cipher und löst die `psk_identity` gegen eine
+aktive Session auf.
 
-The CSCA/Document Signer hierarchy is kept separate from the
-CVCA/DV/terminal hierarchy. Only test credentials generated for the active
-profile are used.
+`PAOSBackend` besitzt die kryptographische EAC2-Zustandsmaschine. Der Kern
+akzeptiert ein Ergebnis erst, wenn der Provider Chip Authentication, Passive
+Authentication, Gültigkeitsdatum und Blacklist-Prüfung positiv nachweist. Eine
+zweite Policy-Grenze schneidet Daten auf Schnittmenge aus Anforderung,
+Terminalrecht, Nutzerauswahl und tatsächlich auf dem Chip vorhandenen Daten.
 
+CSCA/Document-Signer-Trust und CVCA/DV/Terminal-Trust bleiben getrennt. Der
+Kern speichert PSKs als löschbare `bytearray` und entfernt sie beim finalen
+`getResult` oder Ablauf. Für mehrere Prozesse ist vor einer Skalierung ein
+verschlüsselter, atomarer gemeinsamer SessionStore zu implementieren; die CLI
+startet daher alle drei Listener in einem Prozess.
