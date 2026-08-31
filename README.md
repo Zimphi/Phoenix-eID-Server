@@ -1,22 +1,31 @@
 # Phoenix eID Server
 
-Open-source test eID server for integrating the Phoenix ePassport Simulator
-with the AusweisApp SDK and virtual eID profiles.
+Python-Kern eines fail-closed Test-eID-Servers für den Phoenix ePassport
+Simulator und die AusweisApp. Referenz ist BSI TR-03130-1 v2.4.0; das Projekt
+ist weder BSI-zertifiziert noch eine fertige Wirkbetriebs-Komponente.
 
 ## Scope
 
-The repository is intended to provide:
+Implementiert sind:
 
-- a `TcToken` endpoint for AusweisApp SDK `RUN_AUTH` sessions;
-- the server side of a test EAC flow;
-- a test-only CVCA → DV → terminal certificate chain;
-- profile-aware CHAT access rights;
-- callback and result endpoints for the simulator gateway;
-- integration tests against the AusweisApp SDK card simulator and Phoenix
-  virtual eID profiles.
+- `useID`, `getResult` und `getServerInfo` als SOAP-1.1-eID-Interface;
+- sichere, ablaufende und mandantenbegrenzte Sitzungen mit Einmalergebnis;
+- zufällige Session-IDs und TLS-PSKs sowie Replay-Schutz über `RequestCounter`;
+- ein normativ geordnetes `TCTokenType` mit einmaligem Token-Handle;
+- strikte Rechtefilterung für Requested/Required/Optional CHAT;
+- drei getrennte HTTPS-Grenzen für eService-mTLS, öffentliches TcToken und
+  RSA-PSK-PAOS;
+- fail-closed Provider-Schnittstellen für WS-Security und PAOS/EAC2;
+- erzwungene Nachweise für Chip Authentication, Passive Authentication,
+  Ablaufdatum und Blacklist, bevor personenbezogene Daten freigegeben werden.
 
-It does **not** contain a production authorization certificate, production
-private keys, or credentials for the German eID production infrastructure.
+Nicht mitgeliefert sind ein kryptographischer PAOS/EAC2-Provider, eine
+WS-Security-Implementierung, TR-03129/BerCA-Anbindung, produktive
+Berechtigungszertifikate oder ein Sicherheitskonzept des konkreten Betriebs.
+Ohne diese Komponenten startet der jeweilige Netzwerk-Listener nicht.
+
+Der genaue Nachweisstand steht in
+[`docs/TR-03130-COMPLIANCE.md`](docs/TR-03130-COMPLIANCE.md).
 
 ## Trust models
 
@@ -32,25 +41,49 @@ The AusweisApp SDK is the client component. This repository implements the
 corresponding test service; the SDK itself does not supply reusable terminal
 credentials for an arbitrary service.
 
-## Planned package layout
+## Paketstruktur
 
 ```text
 src/phoenix_eid_server/
-  tctoken/       TcToken and session endpoints
-  eac/           terminal-authentication orchestration
-  pki/           test-PKI generation and credential loading
-  gateway/       Phoenix simulator integration
-tests/           protocol and integration tests
-docs/            architecture and operational guidance
+  service.py          eID-Interface-Anwendungslogik
+  sessions.py         TTL, Limits, Replay-Schutz, sichere Löschung
+  soap.py             SOAP-Codec für useID/getResult/getServerInfo
+  tctoken.py          TR-03124-TcToken
+  http.py             getrennte HTTP-Routen und Sicherheitsgrenzen
+  tls.py              mTLS und RSA-PSK-TLS-Kontexte
+  eac.py              PAOS/EAC-Providervertrag und Ergebnisvalidierung
+  message_security.py WS-Security-Providervertrag
+tests/                 Protokoll-, Policy- und Negativtests
 ```
 
-## Security
+## Entwicklung
 
-This project is for development and interoperability testing only. Never
-commit private keys, authorization certificates issued for a real service,
-PINs, CANs, API tokens, or production eID data. See `SECURITY.md`.
+```console
+python -m pip install -e .
+pytest
+```
+
+Der vollständige Drei-Listener-Betrieb verwendet denselben Prozess und damit
+denselben kurzlebigen Sitzungsspeicher:
+
+```console
+phoenix-eid-server \
+  --config config.json \
+  --backend my_eac_provider:create \
+  --message-security my_wssecurity_provider:create
+```
+
+`config.example.json` enthält ausschließlich Platzhalter. Der eCard-Listener
+benötigt Python 3.13 oder neuer mit OpenSSL-PSK-Unterstützung. `identifier`
+eines Providers ist der kleingeschriebene SHA-256-Fingerprint seines
+mTLS-Clientzertifikats. Nach `useID` bildet das eService die TcToken-URL als
+`https://<public-listener>/tctoken/<Session.ID>`.
+
+## Sicherheit
+
+Keine privaten Schlüssel, PIN/CAN, TcTokens oder echte eID-Daten committen.
+Details stehen in `SECURITY.md`.
 
 ## License
 
 Licensed under the European Union Public Licence, version 1.2 (`EUPL-1.2`).
-
