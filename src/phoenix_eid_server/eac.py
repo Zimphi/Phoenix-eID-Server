@@ -76,13 +76,33 @@ def validated_result(session: Session, outcome: EACOutcome, terminal_rights: fro
         for name, selection in session.request.operations.items()
         if selection != AttributeRequest.PROHIBITED
     }
-    effective = requested & terminal_rights & outcome.user_authorized
+    special_results = {
+        "AgeVerification": outcome.fulfils_age,
+        "PlaceVerification": outcome.fulfils_place,
+    }
+    effective_special = {
+        name
+        for name, result in special_results.items()
+        if result is not None and name in requested and name in terminal_rights
+    }
+    unexpected_special = {
+        name
+        for name, result in special_results.items()
+        if result is not None and name not in requested & terminal_rights
+    }
+    if unexpected_special:
+        raise ValueError(
+            f"EAC backend returned unauthorized verification results: {sorted(unexpected_special)}"
+        )
+    effective = (requested - set(special_results)) & terminal_rights & outcome.user_authorized
     leaked = set(outcome.data) - effective
     if leaked:
         raise ValueError(f"EAC backend returned unauthorized attributes: {sorted(leaked)}")
     operations = {}
     for name in session.request.operations:
-        if name in effective and name in outcome.on_chip:
+        if name in effective_special:
+            operations[name] = AttributeResponse.ALLOWED
+        elif name in effective and name in outcome.on_chip:
             operations[name] = AttributeResponse.ALLOWED
         elif name in effective:
             operations[name] = AttributeResponse.NOT_ON_CHIP
@@ -102,8 +122,8 @@ def validated_result(session: Session, outcome: EACOutcome, terminal_rights: fro
         personal_data={name: value for name, value in outcome.data.items() if name in effective},
         operations=operations,
         document_valid=True,
-        fulfils_age=outcome.fulfils_age,
-        fulfils_place=outcome.fulfils_place,
+        fulfils_age=outcome.fulfils_age if "AgeVerification" in effective_special else None,
+        fulfils_place=outcome.fulfils_place if "PlaceVerification" in effective_special else None,
         loa=outcome.loa,
         eid_type=outcome.eid_type,
     )
