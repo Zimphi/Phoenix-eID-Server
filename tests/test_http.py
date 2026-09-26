@@ -47,6 +47,21 @@ def test_token_endpoint_is_no_store_and_one_time(service):
     assert second.status == 404
 
 
+def test_token_uses_session_bound_https_refresh_address(service):
+    from phoenix_eid_server.models import AttributeRequest, UseIDRequest
+
+    session = service.use_id("provider-a", UseIDRequest({"GivenNames": AttributeRequest.REQUIRED}))
+    address = f"https://service.example.test/refresh/{session.identifier}"
+    service.sessions.configure_refresh_address(session.identifier, address)
+
+    response = HTTPApplication(service).handle(
+        "GET", f"/tctoken/{session.identifier}", {}, b""
+    )
+
+    assert response.status == 200
+    assert f"<RefreshAddress>{address}</RefreshAddress>".encode() in response.body
+
+
 def test_paos_requires_actual_psk_listener_authentication(service):
     app = HTTPApplication(service)
     response = app.handle(
