@@ -46,6 +46,15 @@ def test_tc_token_handle_is_one_time(service):
         service.sessions.by_token(session.token_handle)
 
 
+def test_refresh_lookup_only_releases_completed_result(service):
+    session = service.use_id("provider-a", request(GivenNames="REQUIRED"))
+    address = f"https://service.example.test/refresh/{session.identifier}"
+    service.sessions.configure_refresh_address(session.identifier, address)
+    assert session.refresh_address == address
+    with pytest.raises(KeyError):
+        service.sessions.by_refresh_handle(session.identifier)
+
+
 def test_invalid_counter_invalidates_session(service):
     session = service.use_id("provider-a", request(GivenNames="REQUIRED"))
     with pytest.raises(EIDError) as raised:

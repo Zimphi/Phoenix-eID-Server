@@ -7,6 +7,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from urllib.parse import urlsplit
 
 from .errors import get_result, use_id
 from .models import AuthenticationResult, UseIDRequest
@@ -35,6 +36,7 @@ class Session:
     result: AuthenticationResult | None = None
     error: Exception | None = None
     token_retrieved: bool = False
+    refresh_address: str | None = None
     context: dict[str, object] = field(default_factory=dict)
 
     def destroy(self, *, drop_result: bool = True) -> None:
@@ -109,6 +111,28 @@ class SessionStore:
             session = self._sessions.get(self._psk_ids.get(identity, ""))
             if session is None or session.state not in {SessionState.OPEN, SessionState.EAC_ACTIVE}:
                 return None
+            return session
+
+    def configure_refresh_address(self, identifier: str, address: str) -> None:
+        """Bind a per-session HTTPS return page before the TC token is read."""
+        parsed = urlsplit(address)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+                or parsed.fragment):
+            raise ValueError("refresh address must be an absolute HTTPS URL")
+        with self._lock:
+            session = self._sessions.get(identifier)
+            if session is None or session.state != SessionState.OPEN or session.token_retrieved:
+                raise KeyError("session cannot accept a refresh address")
+            session.refresh_address = address
+
+    def by_refresh_handle(self, identifier: str) -> Session:
+        """Return only a completed session for its unguessable session handle."""
+        now = datetime.now(UTC)
+        with self._lock:
+            self._purge(now)
+            session = self._sessions.get(identifier)
+            if session is None or session.state != SessionState.COMPLETE or session.result is None:
+                raise KeyError("result is unavailable")
             return session
 
     def get_result(self, provider_id: str, identifier: str, counter: int) -> Session:

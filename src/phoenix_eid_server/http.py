@@ -90,7 +90,7 @@ class HTTPApplication:
             token = render_tc_token(
                 session,
                 self.service.config.ecard_server_url,
-                provider.refresh_url,
+                session.refresh_address or provider.refresh_url,
                 provider.communication_error_url,
             )
             return Response(

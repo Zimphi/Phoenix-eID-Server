@@ -32,6 +32,41 @@ def test_backend_cannot_release_unrequested_data(service):
         validated_result(session, outcome, service.provider("provider-a").terminal_rights)
 
 
+def test_age_verification_is_returned_without_disclosing_date_of_birth(service):
+    session = service.use_id(
+        "provider-a", UseIDRequest({"AgeVerification": AttributeRequest.REQUIRED}, age=18)
+    )
+    outcome = EACOutcome(
+        data={},
+        user_authorized=frozenset(),
+        on_chip=frozenset(),
+        evidence=evidence(),
+        fulfils_age=True,
+    )
+
+    result = validated_result(session, outcome, service.provider("provider-a").terminal_rights)
+
+    assert result.fulfils_age is True
+    assert result.personal_data == {}
+    assert result.operations["AgeVerification"] == "ALLOWED"
+
+
+def test_backend_cannot_release_unrequested_age_verification(service):
+    session = service.use_id(
+        "provider-a", UseIDRequest({"GivenNames": AttributeRequest.REQUIRED})
+    )
+    outcome = EACOutcome(
+        data={"GivenNames": "ERIKA"},
+        user_authorized=frozenset({"GivenNames"}),
+        on_chip=frozenset({"GivenNames"}),
+        evidence=evidence(),
+        fulfils_age=True,
+    )
+
+    with pytest.raises(ValueError, match="unauthorized verification"):
+        validated_result(session, outcome, service.provider("provider-a").terminal_rights)
+
+
 @pytest.mark.parametrize(
     "failure",
     [
